@@ -818,3 +818,242 @@ button, input, select, textarea { font-family: inherit; }
     }
 }
 .shop-main { max-width: 1300px; margin: 0 auto; }
+/* ===== Jumia-style grid + product view ===== */
+#productContainer {
+    grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+    gap: 14px;
+    align-items: stretch;
+}
+
+@media (max-width: 700px) {
+    #productContainer { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+}
+@media (max-width: 420px) {
+    #productContainer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.tile {
+    display: block;
+    width: 100%;
+    padding: 0;
+    text-align: left;
+    background: var(--panel);
+    color: var(--text);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    overflow: hidden;
+    cursor: pointer;
+    font: inherit;
+    transition: border-color 0.2s, transform 0.2s;
+}
+.tile:hover { border-color: var(--gold); transform: translateY(-3px); }
+.tile:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+
+.tile-photo { position: relative; aspect-ratio: 3 / 4; background: #0f0f0f; }
+
+.tile-photo img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+}
+
+.tile-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 3px 8px;
+    background: rgba(0, 0, 0, 0.78);
+    border: 1px solid #5a2a2a;
+    color: #F0A3A3;
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.tile h3 {
+    margin: 10px 10px 4px;
+    font-family: var(--font-body, 'Jost', sans-serif);
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--text);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.tile-price { margin: 0 10px 12px; color: var(--gold); font-weight: 600; font-size: 15px; }
+
+/* Product view */
+body.pm-open { overflow: hidden; }
+
+.pm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 950;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(0, 0, 0, 0.78);
+}
+.pm-overlay[hidden] { display: none; }
+
+.pm-dialog {
+    position: relative;
+    width: min(980px, 100%);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+}
+
+.pm-close {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 2;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    background: rgba(0, 0, 0, 0.75);
+    color: var(--gold);
+    border: 1px solid var(--gold);
+    border-radius: 50%;
+    font-size: 16px;
+    cursor: pointer;
+}
+.pm-close:hover { background: var(--gold); color: var(--black); }
+
+.pm-gallery { padding: 16px; background: #0f0f0f; }
+
+.pm-gallery > img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    object-fit: cover;
+    object-position: center top;
+    background: #161616;
+    border-radius: 4px;
+}
+
+.pm-thumbs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+.pm-thumbs img {
+    width: 56px;
+    height: 68px;
+    object-fit: cover;
+    object-position: center top;
+    border: 2px solid transparent;
+    border-radius: 3px;
+    opacity: 0.6;
+    cursor: pointer;
+}
+.pm-thumbs img:hover,
+.pm-thumbs img.active { opacity: 1; border-color: var(--gold); }
+
+.pm-info { padding: 26px 24px 24px; }
+
+.pm-info h2 { margin: 0 44px 6px 0; font-size: 26px; line-height: 1.2; color: var(--text); }
+.pm-price { margin: 0 0 12px; color: var(--gold); font-size: 24px; font-weight: 600; }
+.pm-desc { margin: 0 0 16px; color: var(--muted); font-size: 14px; }
+
+.pm-group { margin: 14px 0; }
+.pm-label { display: block; margin-bottom: 8px; font-size: 13px; color: var(--muted); letter-spacing: 0.5px; }
+.pm-label b { color: var(--text); }
+
+.pm-options { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.pm-chip {
+    padding: 8px 14px;
+    background: transparent;
+    color: var(--text);
+    border: 1px solid #4a4436;
+    border-radius: 3px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+.pm-chip:hover { border-color: var(--gold); }
+.pm-chip.active { background: var(--gold); color: var(--black); border-color: var(--gold); font-weight: 600; }
+.pm-chip.out { opacity: 0.45; text-decoration: line-through; }
+.pm-chip.out.active { opacity: 1; text-decoration: none; background: #2a1414; color: #F0A3A3; border-color: #5a2a2a; }
+
+.pm-stock { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.pm-stock.low { color: #F0C36A; }
+.pm-stock.none { color: #F0A3A3; }
+
+.pm-qty { display: inline-flex; border: 1px solid #4a4436; border-radius: 3px; overflow: hidden; }
+
+.pm-qty button {
+    width: 42px;
+    background: transparent;
+    color: var(--gold);
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+}
+.pm-qty button:disabled { opacity: 0.3; cursor: not-allowed; }
+
+.pm-qty input {
+    width: 60px;
+    padding: 9px 0;
+    text-align: center;
+    background: #0f0f0f;
+    color: var(--text);
+    border: none;
+    border-left: 1px solid #4a4436;
+    border-right: 1px solid #4a4436;
+    font: inherit;
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+.pm-qty input::-webkit-outer-spin-button,
+.pm-qty input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+
+.pm-total { margin: 14px 0; font-weight: 600; color: var(--text); }
+
+.pm-add {
+    width: 100%;
+    padding: 15px;
+    background: var(--gold);
+    color: var(--black);
+    border: none;
+    border-radius: 3px;
+    font: inherit;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+}
+.pm-add:hover { background: var(--gold-light); }
+.pm-add:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* Phones: the product view fills the screen */
+@media (max-width: 760px) {
+    .pm-overlay { padding: 0; align-items: stretch; }
+
+    .pm-dialog {
+        grid-template-columns: 1fr;
+        max-height: 100%;
+        height: 100%;
+        border: none;
+        border-radius: 0;
+    }
+
+    .pm-gallery { padding: 0; }
+    .pm-gallery > img { aspect-ratio: 1 / 1; border-radius: 0; }
+    .pm-thumbs { padding: 10px 14px 0; }
+
+    .pm-info { padding: 18px 16px 24px; }
+    .pm-info h2 { font-size: 22px; }
+
+    .pm-add { position: sticky; bottom: 10px; box-shadow: 0 -8px 16px rgba(21, 21, 21, 0.95); }
+}
