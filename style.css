@@ -1057,3 +1057,5 @@ body.pm-open { overflow: hidden; }
 
     .pm-add { position: sticky; bottom: 10px; box-shadow: 0 -8px 16px rgba(21, 21, 21, 0.95); }
 }
+html, body { max-width: 100%; overflow-x: hidden; }
+.tile-photo img { max-width: 100%; }
