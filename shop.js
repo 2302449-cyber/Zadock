@@ -4,15 +4,23 @@ const clearSearch = document.getElementById("clearSearch");
 const resultInfo = document.getElementById("resultInfo");
 
 let searchText = "";
+let searchTimer = null;
+
+// State of the open product view
+let openId = null;
+let selColour = null;
+let selSize = null;
+let imgIndex = 0;
+let qty = 1;
+let modalPushed = false;
 
 // cart.js calls this after an order so the stock numbers refresh
 function refreshShopView() {
     displayProducts();
+    if (openId && !modal.hidden) renderModal(false);
 }
 
 /* ================= SEARCH ================= */
-
-let searchTimer = null;
 
 searchInput.addEventListener("input", () => {
     clearSearch.hidden = searchInput.value === "";
@@ -49,7 +57,13 @@ function visibleProducts() {
     });
 }
 
-/* ================= PRODUCT CARDS ================= */
+/* ================= PRODUCT GRID ================= */
+
+function totalStock(product) {
+    return (product.colours || []).reduce((sum, colour) =>
+        sum + Object.values(colour.stock || {})
+            .reduce((a, b) => a + Number(b || 0), 0), 0);
+}
 
 function displayProducts() {
     productContainer.replaceChildren();
@@ -70,267 +84,403 @@ function displayProducts() {
     }
 
     list.forEach(product => {
-        // Always read the newest copy of this product
-        const current = () => findProduct(product.id) || product;
+        const tile = document.createElement("button");
+        tile.type = "button";
+        tile.className = "tile";
 
-        const card = document.createElement("article");
-        card.className = "product-card";
-        card.id = `p-${product.id}`;
+        const frame = document.createElement("div");
+        frame.className = "tile-photo";
 
-        const image = document.createElement("img");
-        image.alt = product.name;
-        image.loading = "lazy";
+        const photo = (product.colours || []).flatMap(c => c.images)[0];
 
-        // Row of small clickable photos under the main picture
-        const thumbs = document.createElement("div");
-        thumbs.className = "thumbs";
+        if (photo) {
+            const image = document.createElement("img");
+            image.src = photo;
+            image.alt = product.name;
+            image.loading = "lazy";
+            image.decoding = "async";
+            frame.appendChild(image);
+        }
 
-        function showThumbs() {
-            const colour = findColour(current(), colourSelect.value);
-            const images = colour?.images || [];
-
-            thumbs.replaceChildren();
-            if (images.length < 2) return;
-
-            images.forEach((src, i) => {
-                const thumb = document.createElement("img");
-                thumb.src = src;
-                thumb.alt = `${product.name} photo ${i + 1}`;
-                thumb.className = i === 0 ? "thumb active" : "thumb";
-
-                thumb.addEventListener("click", () => {
-                    image.src = src;
-                    thumbs.querySelectorAll(".thumb")
-                        .forEach(t => t.classList.remove("active"));
-                    thumb.classList.add("active");
-                });
-
-                thumbs.appendChild(thumb);
-            });
+        if (totalStock(product) === 0) {
+            const badge = document.createElement("span");
+            badge.className = "tile-badge";
+            badge.textContent = "Sold out";
+            frame.appendChild(badge);
         }
 
         const name = document.createElement("h3");
         name.textContent = product.name;
 
-        const description = document.createElement("p");
-        description.textContent = product.description;
-
         const price = document.createElement("p");
-        price.textContent = `Price: ${money(Number(product.price))}`;
+        price.className = "tile-price";
+        price.textContent = money(Number(product.price));
 
-        // Colour selector
-        const colourLabel = document.createElement("label");
-        colourLabel.textContent = "Choose colour: ";
+        tile.append(frame, name, price);
+        tile.addEventListener("click", () => openProduct(product.id));
 
-        const colourSelect = document.createElement("select");
-
-        (product.colours || []).forEach(colour => {
-            const option = document.createElement("option");
-            option.value = colour.name;
-            option.textContent = colour.name;
-            colourSelect.appendChild(option);
-        });
-
-        colourLabel.appendChild(colourSelect);
-
-        // Size selector
-        const sizeLabel = document.createElement("label");
-        sizeLabel.textContent = "Choose size: ";
-
-        const sizeSelect = document.createElement("select");
-
-        sizesFor(product).forEach(size => {
-            const option = document.createElement("option");
-            option.value = size;
-            option.textContent = sizeText(size);
-            sizeSelect.appendChild(option);
-        });
-
-        // One-size products have nothing to choose
-        if (isOneSize(product)) sizeSelect.disabled = true;
-
-        sizeLabel.appendChild(sizeSelect);
-
-        const stockText = document.createElement("p");
-
-        // Quantity input
-        const quantityLabel = document.createElement("label");
-        quantityLabel.textContent = "Quantity: ";
-
-        const quantityInput = document.createElement("input");
-        quantityInput.type = "number";
-        quantityInput.min = "1";
-        quantityInput.step = "1";
-        quantityInput.value = "1";
-
-        quantityLabel.appendChild(quantityInput);
-
-        const total = document.createElement("p");
-
-        const addButton = document.createElement("button");
-        addButton.type = "button";
-        addButton.textContent = "Add to Cart";
-
-        function updateOrderDetails() {
-            const latest = current();
-            const colour = findColour(latest, colourSelect.value);
-            const stock = Number(colour?.stock?.[sizeSelect.value] ?? 0);
-
-            stockText.textContent = `Available stock: ${stock}`;
-            quantityInput.max = String(stock);
-
-            if (stock < 1) {
-                quantityInput.value = "0";
-                quantityInput.disabled = true;
-                addButton.disabled = true;
-
-                const held = getReservedQty(
-                    product.id, colourSelect.value, sizeSelect.value
-                );
-
-                total.textContent = held > 0
-                    ? "Reserved by another customer. It returns to stock if unpaid after 2 hours. Message us on WhatsApp to be notified."
-                    : "This option is out of stock.";
-                return;
-            }
-
-            quantityInput.disabled = false;
-            addButton.disabled = false;
-
-            let quantity = Number(quantityInput.value);
-
-            if (!Number.isInteger(quantity) || quantity < 1 || quantity > stock) {
-                quantity = 1;
-                quantityInput.value = "1";
-            }
-
-            total.textContent =
-                `Total: ${money(quantity * Number(latest.price))}`;
-        }
-
-        colourSelect.addEventListener("change", () => {
-            const colour = findColour(current(), colourSelect.value);
-            image.src = colour?.images?.[0] || "";
-            image.alt = `${product.name} - ${colourSelect.value}`;
-            showThumbs();
-            updateOrderDetails();
-        });
-
-        sizeSelect.addEventListener("change", updateOrderDetails);
-        quantityInput.addEventListener("input", updateOrderDetails);
-
-        addButton.addEventListener("click", async () => {
-            const quantity = Number(quantityInput.value);
-            const colourName = colourSelect.value;
-            const size = sizeSelect.value;
-
-            addButton.disabled = true;
-
-            // Check the newest stock before adding to the cart
-            try {
-                await loadProducts();
-            } catch {
-                alert("Could not check stock. Please check your internet connection.");
-                updateOrderDetails();
-                return;
-            }
-
-            const latestProduct = findProduct(product.id);
-            const latestColour = findColour(latestProduct, colourName);
-
-            if (!latestProduct || !latestColour) {
-                alert("This product is no longer available.");
-                displayProducts();
-                return;
-            }
-
-            const stock = Number(latestColour.stock?.[size] ?? 0);
-
-            if (!Number.isInteger(quantity) || quantity < 1 || quantity > stock) {
-                alert("Please select a valid quantity within available stock.");
-                updateOrderDetails();
-                return;
-            }
-
-            const existingItem = cart.find(item =>
-                item.productId === product.id &&
-                item.colourName === colourName &&
-                item.size === size
-            );
-
-            const newQuantity = (existingItem?.quantity || 0) + quantity;
-
-            if (newQuantity > stock) {
-                alert(
-                    `You can add only ${Math.max(
-                        0, stock - (existingItem?.quantity || 0)
-                    )} more of this option.`
-                );
-                updateOrderDetails();
-                return;
-            }
-
-            const previousCart = JSON.stringify(cart);
-
-            if (existingItem) {
-                existingItem.quantity = newQuantity;
-                existingItem.price = Number(latestProduct.price);
-            } else {
-                cart.push({
-                    productId: product.id,
-                    colourName,
-                    size,
-                    quantity,
-                    price: Number(latestProduct.price)
-                });
-            }
-
-            if (!saveCart()) {
-                cart = JSON.parse(previousCart);
-                updateOrderDetails();
-                return;
-            }
-
-            renderCart();
-            updateOrderDetails();
-            openCart();
-        });
-
-        const initialColour = product.colours?.[0];
-        image.src = initialColour?.images?.[0] || "";
-        showThumbs();
-
-        card.append(
-            image,
-            thumbs,
-            name,
-            description,
-            price,
-            colourLabel,
-            sizeLabel,
-            stockText,
-            quantityLabel,
-            total,
-            addButton
-        );
-
-        productContainer.appendChild(card);
-        updateOrderDetails();
+        productContainer.appendChild(tile);
     });
 
     renderCart();
 }
 
-// When a customer arrives from "New Arrivals", scroll to that product
-function scrollToLinkedProduct() {
+/* ================= PRODUCT VIEW ================= */
+
+const modal = document.createElement("div");
+modal.className = "pm-overlay";
+modal.hidden = true;
+modal.innerHTML = `
+    <div class="pm-dialog" role="dialog" aria-modal="true">
+        <button type="button" class="pm-close" aria-label="Close">✕</button>
+
+        <div class="pm-gallery">
+            <img class="pm-main" alt="">
+            <div class="pm-thumbs"></div>
+        </div>
+
+        <div class="pm-info">
+            <h2 class="pm-title"></h2>
+            <p class="pm-price"></p>
+            <p class="pm-desc"></p>
+
+            <div class="pm-group">
+                <span class="pm-label">Colour: <b class="pm-colour-name"></b></span>
+                <div class="pm-options pm-colours"></div>
+            </div>
+
+            <div class="pm-group">
+                <span class="pm-label">Size: <b class="pm-size-name"></b></span>
+                <div class="pm-options pm-sizes"></div>
+            </div>
+
+            <p class="pm-stock"></p>
+
+            <div class="pm-group">
+                <span class="pm-label">Quantity</span>
+                <div class="pm-qty">
+                    <button type="button" class="pm-minus" aria-label="Less">−</button>
+                    <input type="number" class="pm-qty-input" min="1" step="1" value="1">
+                    <button type="button" class="pm-plus" aria-label="More">+</button>
+                </div>
+            </div>
+
+            <p class="pm-total"></p>
+
+            <button type="button" class="pm-add">Add to Cart</button>
+        </div>
+    </div>
+`;
+document.body.appendChild(modal);
+
+const pm = {
+    dialog: modal.querySelector(".pm-dialog"),
+    close: modal.querySelector(".pm-close"),
+    main: modal.querySelector(".pm-main"),
+    thumbs: modal.querySelector(".pm-thumbs"),
+    title: modal.querySelector(".pm-title"),
+    price: modal.querySelector(".pm-price"),
+    desc: modal.querySelector(".pm-desc"),
+    colours: modal.querySelector(".pm-colours"),
+    colourName: modal.querySelector(".pm-colour-name"),
+    sizes: modal.querySelector(".pm-sizes"),
+    sizeName: modal.querySelector(".pm-size-name"),
+    stock: modal.querySelector(".pm-stock"),
+    minus: modal.querySelector(".pm-minus"),
+    plus: modal.querySelector(".pm-plus"),
+    qty: modal.querySelector(".pm-qty-input"),
+    total: modal.querySelector(".pm-total"),
+    add: modal.querySelector(".pm-add")
+};
+
+// First size that is in stock for a colour
+function pickDefaultSize(product, colourName) {
+    const sizes = sizesFor(product);
+    return sizes.find(size => getStock(product.id, colourName, size) > 0) || sizes[0];
+}
+
+function openProduct(id, push = true) {
+    const product = findProduct(id);
+    if (!product) return;
+
+    openId = id;
+    selColour = product.colours[0]?.name ?? null;
+    selSize = pickDefaultSize(product, selColour);
+    imgIndex = 0;
+    qty = 1;
+
+    renderModal(true);
+
+    modal.hidden = false;
+    document.body.classList.add("pm-open");
+    pm.dialog.scrollTop = 0;
+
+    if (push) {
+        history.pushState({ modal: id }, "", `#p-${id}`);
+        modalPushed = true;
+    } else {
+        modalPushed = false;
+    }
+}
+
+function hideModal() {
+    modal.hidden = true;
+    document.body.classList.remove("pm-open");
+    openId = null;
+    modalPushed = false;
+}
+
+function closeModal() {
+    if (modal.hidden) return;
+
+    if (modalPushed) {
+        // The popstate handler below hides it
+        history.back();
+    } else {
+        hideModal();
+
+        if (location.hash.startsWith("#p-")) {
+            history.replaceState(null, "", location.pathname + location.search);
+        }
+    }
+}
+
+window.addEventListener("popstate", () => {
+    if (!modal.hidden) hideModal();
+});
+
+pm.close.addEventListener("click", closeModal);
+
+modal.addEventListener("click", event => {
+    if (event.target === modal) closeModal();
+});
+
+document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !modal.hidden &&
+        !cartSection.classList.contains("open")) {
+        closeModal();
+    }
+});
+
+function setQty(value) {
+    const stock = getStock(openId, selColour, selSize);
+    qty = Math.max(1, Math.min(stock, Math.floor(Number(value)) || 1));
+    renderModal(false);
+}
+
+pm.minus.addEventListener("click", () => setQty(qty - 1));
+pm.plus.addEventListener("click", () => setQty(qty + 1));
+pm.qty.addEventListener("change", () => setQty(pm.qty.value));
+
+function renderModal(resetImage) {
+    const product = findProduct(openId);
+
+    if (!product) {
+        hideModal();
+        return;
+    }
+
+    if (resetImage) imgIndex = 0;
+
+    const colour = findColour(product, selColour) || product.colours[0];
+    if (colour && colour.name !== selColour) selColour = colour.name;
+
+    pm.title.textContent = product.name;
+    pm.price.textContent = money(Number(product.price));
+    pm.desc.textContent = product.description || "";
+    pm.desc.hidden = !product.description;
+
+    /* Photos */
+    const images = colour?.images || [];
+    if (imgIndex >= images.length) imgIndex = 0;
+
+    pm.main.src = images[imgIndex] || "";
+    pm.main.alt = `${product.name} - ${selColour || ""}`;
+
+    pm.thumbs.replaceChildren();
+
+    if (images.length > 1) {
+        images.forEach((src, i) => {
+            const thumb = document.createElement("img");
+            thumb.src = src;
+            thumb.alt = `${product.name} photo ${i + 1}`;
+            thumb.className = i === imgIndex ? "active" : "";
+
+            thumb.addEventListener("click", () => {
+                imgIndex = i;
+                renderModal(false);
+            });
+
+            pm.thumbs.appendChild(thumb);
+        });
+    }
+
+    /* Colours */
+    pm.colourName.textContent = selColour || "";
+    pm.colours.replaceChildren();
+
+    product.colours.forEach(item => {
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "pm-chip" + (item.name === selColour ? " active" : "");
+        chip.textContent = item.name;
+
+        chip.addEventListener("click", () => {
+            selColour = item.name;
+
+            if (getStock(product.id, selColour, selSize) < 1) {
+                selSize = pickDefaultSize(product, selColour);
+            }
+
+            qty = 1;
+            renderModal(true);
+        });
+
+        pm.colours.appendChild(chip);
+    });
+
+    /* Sizes */
+    pm.sizeName.textContent = sizeText(selSize);
+    pm.sizes.replaceChildren();
+
+    sizesFor(product).forEach(size => {
+        const out = getStock(product.id, selColour, size) < 1;
+
+        const chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "pm-chip" +
+            (size === selSize ? " active" : "") +
+            (out ? " out" : "");
+        chip.textContent = sizeText(size);
+
+        chip.addEventListener("click", () => {
+            selSize = size;
+            qty = 1;
+            renderModal(false);
+        });
+
+        pm.sizes.appendChild(chip);
+    });
+
+    /* Stock, quantity, total */
+    const stock = getStock(product.id, selColour, selSize);
+
+    if (stock < 1) {
+        const held = getReservedQty(product.id, selColour, selSize);
+
+        pm.stock.className = "pm-stock none";
+        pm.stock.textContent = held > 0
+            ? "Reserved by another customer. It returns to stock if unpaid after 2 hours. Message us on WhatsApp to be notified."
+            : "This option is out of stock.";
+
+        qty = 0;
+        pm.total.textContent = "";
+    } else {
+        if (qty < 1 || qty > stock) qty = 1;
+
+        pm.stock.className = "pm-stock" + (stock <= 3 ? " low" : "");
+        pm.stock.textContent = stock <= 3
+            ? `Only ${stock} left`
+            : `Available stock: ${stock}`;
+
+        pm.total.textContent = `Total: ${money(qty * Number(product.price))}`;
+    }
+
+    pm.qty.value = String(qty);
+    pm.qty.max = String(stock);
+    pm.qty.disabled = stock < 1;
+    pm.minus.disabled = stock < 1 || qty <= 1;
+    pm.plus.disabled = stock < 1 || qty >= stock;
+    pm.add.disabled = stock < 1;
+}
+
+pm.add.addEventListener("click", async () => {
+    const productId = openId;
+    const colourName = selColour;
+    const size = selSize;
+    const quantity = qty;
+
+    if (!productId) return;
+
+    pm.add.disabled = true;
+
+    // Check the newest stock before adding to the cart
+    try {
+        await loadProducts();
+    } catch {
+        alert("Could not check stock. Please check your internet connection.");
+        renderModal(false);
+        return;
+    }
+
+    const latestProduct = findProduct(productId);
+    const latestColour = findColour(latestProduct, colourName);
+
+    if (!latestProduct || !latestColour) {
+        alert("This product is no longer available.");
+        hideModal();
+        displayProducts();
+        return;
+    }
+
+    const stock = Number(latestColour.stock?.[size] ?? 0);
+
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > stock) {
+        alert("Please select a valid quantity within available stock.");
+        renderModal(false);
+        return;
+    }
+
+    const existingItem = cart.find(item =>
+        item.productId === productId &&
+        item.colourName === colourName &&
+        item.size === size
+    );
+
+    const newQuantity = (existingItem?.quantity || 0) + quantity;
+
+    if (newQuantity > stock) {
+        alert(
+            `You can add only ${Math.max(
+                0, stock - (existingItem?.quantity || 0)
+            )} more of this option.`
+        );
+        renderModal(false);
+        return;
+    }
+
+    const previousCart = JSON.stringify(cart);
+
+    if (existingItem) {
+        existingItem.quantity = newQuantity;
+        existingItem.price = Number(latestProduct.price);
+    } else {
+        cart.push({
+            productId,
+            colourName,
+            size,
+            quantity,
+            price: Number(latestProduct.price)
+        });
+    }
+
+    if (!saveCart()) {
+        cart = JSON.parse(previousCart);
+        renderModal(false);
+        return;
+    }
+
+    renderCart();
+    closeModal();
+    openCart();
+});
+
+// Open a product straight from a link like shop.html#p-<id>
+function openFromHash() {
     const id = location.hash.slice(1);
     if (!id.startsWith("p-")) return;
 
-    const card = document.getElementById(id);
-    if (!card) return;
-
-    card.scrollIntoView({ behavior: "smooth", block: "center" });
-    card.classList.add("highlight");
+    openProduct(id.slice(2), false);
 }
 
 (async function start() {
@@ -347,5 +497,5 @@ function scrollToLinkedProduct() {
     clearSearch.hidden = searchInput.value === "";
 
     displayProducts();
-    scrollToLinkedProduct();
+    openFromHash();
 })();
