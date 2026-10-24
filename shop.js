@@ -472,7 +472,7 @@ pm.add.addEventListener("click", async () => {
 
     renderCart();
     closeModal();
-    openCart();
+    showToast('Added to cart: ${latestProduct.name}');
 });
 
 // Open a product straight from a link like shop.html#p-<id>
@@ -499,3 +499,35 @@ function openFromHash() {
     displayProducts();
     openFromHash();
 })();
+/* ================= "ADDED TO CART" NOTICE ================= */
+
+let toastEl = null;
+let toastTimer = null;
+
+function showToast(message) {
+    if (!toastEl) {
+        toastEl = document.createElement("div");
+        toastEl.className = "toast";
+        toastEl.setAttribute("role", "status");
+
+        const text = document.createElement("span");
+        text.className = "toast-text";
+
+        const viewCart = document.createElement("button");
+        viewCart.type = "button";
+        viewCart.textContent = "View cart";
+        viewCart.addEventListener("click", () => {
+            toastEl.classList.remove("show");
+            openCart();
+        });
+
+        toastEl.append(text, viewCart);
+        document.body.appendChild(toastEl);
+    }
+
+    toastEl.querySelector(".toast-text").textContent = message;
+    toastEl.classList.add("show");
+
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), 3500);
+}

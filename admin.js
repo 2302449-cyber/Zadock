@@ -743,6 +743,7 @@ async function refreshAll() {
     await loadOrders();
     renderProducts();
     renderOrders();
+    renderAnalytics();
 }
 
 function minutesLeft(order) {
@@ -894,3 +895,295 @@ function renderOrders() {
 setInterval(() => {
     if (dashboardShown && !editingId && !recovering) refreshAll();
 }, 60000);
+/* ================= ANALYTICS ================= */
+
+const analyticsRange = document.getElementById("analyticsRange");
+const analyticsBody = document.getElementById("analyticsBody");
+const analyticsEmpty = document.getElementById("analyticsEmpty");
+const charts = {};
+
+const OUTCOMES = [
+    ["pending", "Awaiting payment", "#F5B700"],
+    ["processing", "Paid, on its way", "#1d6fd1"],
+    ["delivered", "Delivered", "#1E7B34"],
+    ["cancelled", "Cancelled", "#B71C1C"],
+    ["expired", "Expired (unpaid)", "#8c8c8c"]
+];
+
+function outcomeOf(order) {
+    if (order.status === "paid") {
+        return order.delivery_stage === "delivered" ? "delivered" : "processing";
+    }
+    return order.status;
+}
+
+function ordersInRange() {
+    const days = Number(analyticsRange.value);
+    if (!days) return orders;
+
+    const since = Date.now() - days * 24 * 60 * 60 * 1000;
+    return orders.filter(order => new Date(order.created_at).getTime() >= since);
+}
+
+function percent(part, whole) {
+    return whole ? Math.round((part / whole) * 1000) / 10 : 0;
+}
+
+function dayKey(date) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function drawChart(id, type, data, options = {}) {
+    const canvas = document.getElementById(id);
+    if (!canvas || typeof Chart === "undefined") return;
+
+    // Update the chart in place so it does not flicker on refresh
+    if (charts[id]) {
+        charts[id].data = data;
+        charts[id].update();
+        return;
+    }
+
+    charts[id] = new Chart(canvas, {
+        type,
+        data,
+        options: { responsive: true, maintainAspectRatio: false, ...options }
+    });
+}
+
+function statCard(label, value, note) {
+    const card = document.createElement("div");
+    card.className = "an-card";
+
+    const big = document.createElement("div");
+    big.className = "an-value";
+    big.textContent = value;
+
+    const small = document.createElement("div");
+    small.className = "an-label";
+    small.textContent = label;
+
+    card.append(big, small);
+
+    if (note) {
+        const extra = document.createElement("div");
+        extra.className = "an-note";
+        extra.textContent = note;
+        card.appendChild(extra);
+    }
+
+    return card;
+}
+
+// rows: [{ left, right, fraction, tag, tagClass }]
+function fillList(container, rows, emptyText) {
+    container.replaceChildren();
+
+    if (rows.length === 0) {
+        const none = document.createElement("p");
+        none.className = "help";
+        none.textContent = emptyText;
+        container.appendChild(none);
+        return;
+    }
+
+    rows.forEach(row => {
+        const wrap = document.createElement("div");
+        wrap.className = "an-row";
+
+        const top = document.createElement("div");
+        top.className = "an-row-top";
+
+        const left = document.createElement("span");
+        left.textContent = row.left;
+
+        const right = document.createElement("span");
+
+        if (row.tag) {
+            right.className = `an-tag ${row.tagClass || ""}`;
+            right.textContent = row.tag;
+        } else {
+            right.textContent = row.right;
+        }
+
+        top.append(left, right);
+        wrap.appendChild(top);
+
+        if (row.fraction !== undefined) {
+            const bar = document.createElement("div");
+            bar.className = "an-bar";
+
+            const fill = document.createElement("span");
+            fill.style.width = `${Math.max(4, Math.round(row.fraction * 100))}%`;
+
+            bar.appendChild(fill);
+            wrap.appendChild(bar);
+        }
+
+        container.appendChild(wrap);
+    });
+}
+
+function renderAnalytics() {
+    if (!analyticsBody) return;
+
+    const list = ordersInRange();
+    const total = list.length;
+
+    analyticsEmpty.hidden = total > 0;
+    analyticsBody.hidden = total === 0;
+
+    if (total === 0) return;
+
+    /* Counts per outcome */
+    const counts = {};
+    OUTCOMES.forEach(([key]) => { counts[key] = 0; });
+    list.forEach(order => {
+        const key = outcomeOf(order);
+        counts[key] = (counts[key] || 0) + 1;
+    });
+
+    const paid = list.filter(order => order.status === "paid");
+    const pending = list.filter(order => order.status === "pending");
+
+    const revenue = paid.reduce((sum, order) => sum + order.total, 0);
+    const awaiting = pending.reduce((sum, order) => sum + order.total, 0);
+    const average = paid.length ? Math.round(revenue / paid.length) : 0;
+    const declined = counts.cancelled + counts.expired;
+
+    /* Number cards */
+    document.getElementById("anCards").replaceChildren(
+        statCard("Orders", String(total)),
+        statCard("Revenue (paid)", `KSh ${revenue.toLocaleString("en-KE")}`, `${paid.length} paid order${paid.length === 1 ? "" : "s"}`),
+        statCard("Awaiting payment", `KSh ${awaiting.toLocaleString("en-KE")}`, `${pending.length} order${pending.length === 1 ? "" : "s"}`),
+        statCard("Average order", `KSh ${average.toLocaleString("en-KE")}`),
+        statCard("Delivered", `${percent(counts.delivered, total)}%`, `${counts.delivered} of ${total}`),
+        statCard("Declined", `${percent(declined, total)}%`, "Cancelled + expired")
+    );
+
+    /* Outcomes: doughnut with count and percentage in the legend */
+    const shown = OUTCOMES.filter(([key]) => counts[key] > 0);
+
+    drawChart("chartOutcomes", "doughnut", {
+        labels: shown.map(([key, label]) =>
+            `${label}: ${counts[key]} (${percent(counts[key], total)}%)`),
+        datasets: [{
+            data: shown.map(([key]) => counts[key]),
+            backgroundColor: shown.map(item => item[2]),
+            borderColor: "#ffffff",
+            borderWidth: 2
+        }]
+    }, {
+        plugins: {
+            legend: { position: "bottom" },
+            tooltip: { callbacks: { label: context => context.label } }
+        }
+    });
+
+    /* Paid orders by delivery stage */
+    const stages = [
+        ["to_deliver", "To be delivered", "#F5B700"],
+        ["packaged", "Packaged", "#1d6fd1"],
+        ["on_the_way", "On the way", "#8E44AD"],
+        ["delivered", "Delivered", "#1E7B34"]
+    ];
+
+    drawChart("chartPipeline", "bar", {
+        labels: stages.map(item => item[1]),
+        datasets: [{
+            label: "Paid orders",
+            data: stages.map(([key]) => paid.filter(order => order.delivery_stage === key).length),
+            backgroundColor: stages.map(item => item[2])
+        }]
+    }, {
+        indexAxis: "y",
+        plugins: { legend: { display: false } },
+        scales: { x: { beginAtZero: true, ticks: { precision: 0 } } }
+    });
+
+    /* Revenue per day */
+    const dayCount = Math.min(Number(analyticsRange.value) || 30, 90);
+    const keys = [];
+    const labels = [];
+
+    for (let i = dayCount - 1; i >= 0; i--) {
+        const date = new Date();
+        date.setHours(0, 0, 0, 0);
+        date.setDate(date.getDate() - i);
+
+        keys.push(dayKey(date));
+        labels.push(date.toLocaleDateString("en-KE", { day: "numeric", month: "short" }));
+    }
+
+    const byDay = {};
+    paid.forEach(order => {
+        const key = dayKey(new Date(order.paid_at || order.created_at));
+        byDay[key] = (byDay[key] || 0) + order.total;
+    });
+
+    drawChart("chartRevenue", "bar", {
+        labels,
+        datasets: [{
+            label: "Revenue (KSh)",
+            data: keys.map(key => byDay[key] || 0),
+            backgroundColor: "#B71C1C"
+        }]
+    }, {
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
+    });
+
+    /* Best sellers */
+    const sold = {};
+    paid.forEach(order => (order.items || []).forEach(item => {
+        sold[item.name] = (sold[item.name] || 0) + item.quantity;
+    }));
+
+    const top = Object.entries(sold).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const totalSold = Object.values(sold).reduce((a, b) => a + b, 0);
+
+    fillList(
+        document.getElementById("anBest"),
+        top.map(([name, quantity]) => ({
+            left: name,
+            right: `${quantity} sold (${percent(quantity, totalSold)}%)`,
+            fraction: quantity / (top[0][1] || 1)
+        })),
+        "No paid orders in this period yet."
+    );
+
+    /* Low stock: sizes with 1-3 left, and colours that are sold out */
+    const low = [];
+
+    products.forEach(product => product.colours.forEach(colour => {
+        const entries = Object.entries(colour.stock || {});
+        const sum = entries.reduce((acc, [, qty]) => acc + Number(qty), 0);
+
+        if (entries.length > 0 && sum === 0) {
+            low.push({ left: `${product.name} (${colour.name})`, tag: "Sold out", sort: 0 });
+            return;
+        }
+
+        entries.forEach(([size, qty]) => {
+            const number = Number(qty);
+            if (number >= 1 && number <= 3) {
+                low.push({
+                    left: `${product.name} (${colour.name}, ${sizeName(size)})`,
+                    tag: `${number} left`,
+                    tagClass: "low",
+                    sort: number
+                });
+            }
+        });
+    }));
+
+    low.sort((a, b) => a.sort - b.sort);
+
+    fillList(
+        document.getElementById("anLow"),
+        low.slice(0, 12),
+        "Nothing is running low."
+    );
+}
+
+analyticsRange.addEventListener("change", renderAnalytics);

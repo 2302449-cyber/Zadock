@@ -1059,3 +1059,39 @@ body.pm-open { overflow: hidden; }
 }
 html, body { max-width: 100%; overflow-x: hidden; }
 .tile-photo img { max-width: 100%; }
+/* ===== "Added to cart" notice ===== */
+.toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    z-index: 1100;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: calc(100% - 32px);
+    padding: 12px 16px;
+    background: #151515;
+    color: #EDE6D8;
+    border: 1px solid var(--gold);
+    border-radius: 4px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    transform: translate(-50%, 20px);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+
+.toast button {
+    margin: 0;
+    padding: 6px 12px;
+    background: var(--gold);
+    color: var(--black);
+    border: none;
+    border-radius: 3px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+}

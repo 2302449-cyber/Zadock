@@ -140,6 +140,29 @@
             .size-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
             .panel { padding: 16px; }
         }
+        .an-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.an-head select { width: auto; min-width: 160px; }
+
+.an-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin: 16px 0; }
+.an-card { background: #fffdf9; border: 1px solid #e2d6ca; border-radius: 8px; padding: 14px; }
+.an-value { font-family: var(--font-head); font-size: 22px; font-weight: 700; color: #B71C1C; }
+.an-label { margin-top: 2px; font-size: 13px; color: #6b625c; }
+.an-note { margin-top: 4px; font-size: 12px; color: #6b625c; }
+
+.an-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.an-box { min-width: 0; padding: 14px; background: #fff; border: 1px solid #e2d6ca; border-radius: 8px; }
+.an-box.wide { grid-column: 1 / -1; }
+.an-box h3 { margin: 0 0 10px; font-size: 16px; }
+.an-chart { position: relative; height: 300px; }
+
+.an-row { margin: 12px 0; }
+.an-row-top { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; }
+.an-bar { height: 8px; margin-top: 4px; overflow: hidden; background: #f1e8dd; border-radius: 4px; }
+.an-bar span { display: block; height: 100%; background: #F5B700; }
+.an-tag { font-weight: 700; color: #B71C1C; white-space: nowrap; }
+.an-tag.low { color: #b57a00; }
+
+@media (max-width: 700px) { .an-grid { grid-template-columns: 1fr; } }
     </style>
 </head>
 
@@ -184,7 +207,50 @@
 
     <!-- Dashboard (shown after login) -->
     <div id="dashboard" hidden>
+<section class="panel" id="analyticsPanel">
+    <div class="an-head">
+        <h2>Analytics</h2>
+        <select id="analyticsRange" aria-label="Time period">
+            <option value="7">Last 7 days</option>
+            <option value="30" selected>Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="0">All time</option>
+        </select>
+    </div>
 
+    <p id="analyticsEmpty" class="help" hidden>No orders in this period yet.</p>
+
+    <div id="analyticsBody">
+        <div class="an-cards" id="anCards"></div>
+
+        <div class="an-grid">
+            <div class="an-box">
+                <h3>Order outcomes</h3>
+                <div class="an-chart"><canvas id="chartOutcomes"></canvas></div>
+            </div>
+
+            <div class="an-box">
+                <h3>Paid orders: where they are now</h3>
+                <div class="an-chart"><canvas id="chartPipeline"></canvas></div>
+            </div>
+
+            <div class="an-box wide">
+                <h3>Revenue per day (KSh)</h3>
+                <div class="an-chart"><canvas id="chartRevenue"></canvas></div>
+            </div>
+
+            <div class="an-box">
+                <h3>Best sellers</h3>
+                <div id="anBest"></div>
+            </div>
+
+            <div class="an-box">
+                <h3>Low stock</h3>
+                <div id="anLow"></div>
+            </div>
+        </div>
+    </div>
+</section>
         <section class="panel">
             <h2>Add or Edit a Product</h2>
             <p class="help">
@@ -255,6 +321,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="admin.js"></script>
 
 </body>
