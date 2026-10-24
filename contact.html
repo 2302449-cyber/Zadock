@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Contact | HOUSE OF ZADOCK</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@500;600;700&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header id="siteHeader"></header>
+
+    <main>
+        <section class="page-banner">
+            <h1>Contact Us</h1>
+            <p>Questions about sizes, colours or delivery? We are happy to help.</p>
+        </section>
+
+        <section class="page-section">
+            <div class="contact-grid" id="contactCards"></div>
+        </section>
+
+        <section class="page-section alt">
+            <div class="narrow">
+                <h2 class="section-title">Send Us a Message</h2>
+
+                <form id="messageForm" class="message-form">
+                    <label for="msgName">Your name</label>
+                    <input type="text" id="msgName" required>
+
+                    <label for="msgText">Your message</label>
+                    <textarea id="msgText" rows="4" required></textarea>
+
+                    <button type="submit" class="btn whatsapp">Send on WhatsApp</button>
+                </form>
+            </div>
+        </section>
+    </main>
+
+    <footer id="siteFooter"></footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="layout.js"></script>
+    <script src="cart.js"></script>
+
+    <script>
+        (function () {
+            const box = document.getElementById("contactCards");
+            const whatsappLink = `https://wa.me/${SITE.whatsapp}`;
+
+            const cards = [
+                {
+                    icon: "💬",
+                    title: "WhatsApp",
+                    text: "Chat with us for orders and questions.",
+                    href: whatsappLink + "?text=" + encodeURIComponent(
+                        `Hello ${SITE.name}, I would like to ask about...`),
+                    label: "Chat on WhatsApp",
+                    cls: "whatsapp"
+                },
+                {
+                    icon: "📞",
+                    title: "Call Us",
+                    text: SITE.phone,
+                    href: "tel:" + SITE.phone.replace(/[^+\d]/g, ""),
+                    label: "Call now",
+                    cls: ""
+                },
+                {
+                    icon: "✉️",
+                    title: "Email",
+                    text: SITE.email,
+                    href: "mailto:" + SITE.email,
+                    label: "Send email",
+                    cls: ""
+                },
+                {
+                    icon: "📍",
+                    title: "Find Us",
+                    text: SITE.location,
+                    href: "",
+                    label: "",
+                    cls: ""
+                }
+            ];
+
+            cards.forEach(item => {
+                const card = document.createElement("div");
+                card.className = "contact-card";
+
+                const icon = document.createElement("div");
+                icon.className = "contact-icon";
+                icon.textContent = item.icon;
+
+                const title = document.createElement("h3");
+                title.textContent = item.title;
+
+                const text = document.createElement("p");
+                text.textContent = item.text;
+
+                card.append(icon, title, text);
+
+                if (item.href) {
+                    const link = document.createElement("a");
+                    link.className = "btn " + item.cls;
+                    link.href = item.href;
+                    link.textContent = item.label;
+                    if (item.href.startsWith("http")) {
+                        link.target = "_blank";
+                        link.rel = "noopener";
+                    }
+                    card.appendChild(link);
+                }
+
+                box.appendChild(card);
+            });
+
+            // The message form opens WhatsApp with the text ready to send
+            document.getElementById("messageForm").addEventListener("submit", event => {
+                event.preventDefault();
+
+                const name = document.getElementById("msgName").value.trim();
+                const text = document.getElementById("msgText").value.trim();
+
+                const message = `Hello ${SITE.name}, my name is ${name}.\n\n${text}`;
+
+                window.open(
+                    `${whatsappLink}?text=${encodeURIComponent(message)}`,
+                    "_blank"
+                );
+
+                event.target.reset();
+            });
+        })();
+    </script>
+</body>
+</html>

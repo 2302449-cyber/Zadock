@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shop | House of Zadock</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@500;600;700&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header id="siteHeader"></header>
+
+    <main>
+        <section class="page-banner">
+            <h1>Our Collection</h1>
+            <p>Choose your colour and size, then order in minutes.</p>
+        </section>
+
+        <section id="shop">
+            <div class="shop-main">
+                <div class="shop-tools">
+                    <div class="search-box">
+                        <input type="text" id="searchInput" autocomplete="off"
+                            placeholder="Search designs and colours..."
+                            aria-label="Search products">
+                        <button type="button" id="clearSearch" class="search-clear"
+                            aria-label="Clear search" hidden>✕</button>
+                    </div>
+                </div>
+
+                <p id="resultInfo" class="result-info"></p>
+
+                <div id="productContainer">
+                    <p>Loading our collection...</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer id="siteFooter"></footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="layout.js"></script>
+    <script src="cart.js"></script>
+    <script src="shop.js"></script>
+</body>
+</html>

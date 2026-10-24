@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Track Your Order | HOUSE OF ZADOCK</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Bodoni+Moda:wght@500;600;700&family=Jost:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <header id="siteHeader"></header>
+
+    <main>
+        <section class="page-banner">
+            <h1>Track Your Order</h1>
+            <p>Enter your order number and phone number to see where your order is.</p>
+        </section>
+
+        <section class="page-section">
+            <div class="track-box">
+
+                <form id="trackForm" class="message-form">
+                    <label for="trackOrderNumber">Order number</label>
+                    <input type="text" id="trackOrderNumber" placeholder="e.g. AE3F9A21"
+                        autocapitalize="characters" required>
+
+                    <label for="trackPhone">Phone number used when ordering</label>
+                    <input type="tel" id="trackPhone" placeholder="e.g. 0712345678"
+                        autocomplete="tel" required>
+
+                    <button type="submit" class="btn" id="trackButton">Track Order</button>
+                </form>
+
+                <div id="trackResult"></div>
+
+            </div>
+        </section>
+    </main>
+
+    <footer id="siteFooter"></footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="config.js"></script>
+    <script src="layout.js"></script>
+    <script src="cart.js"></script>
+
+    <script>
+        (function () {
+            const STEPS = [
+                ["placed", "Order Successful", "We have received your order."],
+                ["to_deliver", "To Be Delivered", "Payment confirmed. Your order is scheduled for delivery."],
+                ["packaged", "Packaged", "Your items are packed and ready."],
+                ["on_the_way", "On the Way", "Your order has left us and is heading to you."],
+                ["delivered", "Delivered", "Your order has arrived. Thank you for shopping with us!"]
+            ];
+
+            const form = document.getElementById("trackForm");
+            const orderInput = document.getElementById("trackOrderNumber");
+            const phoneInput = document.getElementById("trackPhone");
+            const button = document.getElementById("trackButton");
+            const result = document.getElementById("trackResult");
+
+            function formatTime(value) {
+                return value ? new Date(value).toLocaleString("en-KE") : "";
+            }
+
+            function showMessage(text, isError) {
+                result.replaceChildren();
+
+                const p = document.createElement("p");
+                p.className = isError ? "track-message error" : "track-message";
+                p.textContent = text;
+                result.appendChild(p);
+            }
+
+            function render(info) {
+                result.replaceChildren();
+
+                const title = document.createElement("h2");
+                title.className = "track-title";
+                title.textContent = `Order ${info.order_number}`;
+                result.appendChild(title);
+
+                if (info.status === "cancelled") {
+                    showMessage("This order was cancelled. If this is a surprise, please message us on WhatsApp.", true);
+                    return;
+                }
+
+                if (info.status === "expired") {
+                    showMessage("This order expired because payment was not received within 2 hours, and the items were released. You are welcome to place a new order.", true);
+                    return;
+                }
+
+                const stageKey = info.status === "paid" ? info.stage : "placed";
+                const currentIndex = STEPS.findIndex(step => step[0] === stageKey);
+                const allDone = stageKey === "delivered";
+
+                const list = document.createElement("ol");
+                list.className = "timeline";
+
+                STEPS.forEach(([key, label, text], index) => {
+                    const item = document.createElement("li");
+                    const done = allDone || index < currentIndex;
+                    const current = !allDone && index === currentIndex;
+
+                    item.className = done ? "done" : current ? "current" : "todo";
+
+                    const dot = document.createElement("span");
+                    dot.className = "dot";
+                    dot.textContent = done ? "✓" : String(index + 1);
+
+                    const heading = document.createElement("h4");
+                    heading.textContent = label;
+
+                    const description = document.createElement("p");
+                    description.textContent = text;
+
+                    item.append(dot, heading, description);
+
+                    const when = index === 0
+                        ? info.placed_at
+                        : (info.stage_times || {})[key];
+
+                    if ((done || current) && when) {
+                        const time = document.createElement("p");
+                        time.className = "when";
+                        time.textContent = formatTime(when);
+                        item.appendChild(time);
+                    }
+
+                    if (index === 0 && info.status === "pending") {
+                        const note = document.createElement("p");
+                        note.className = "when";
+                        note.textContent =
+                            `Waiting for payment. Your items are held until ${formatTime(info.hold_expires_at)}.`;
+                        item.appendChild(note);
+                    }
+
+                    list.appendChild(item);
+                });
+
+                result.appendChild(list);
+
+                const summary = document.createElement("div");
+                summary.className = "track-summary";
+
+                const summaryTitle = document.createElement("h3");
+                summaryTitle.textContent = "Your items";
+                summary.appendChild(summaryTitle);
+
+                (info.items || []).forEach(item => {
+                    const line = document.createElement("p");
+                    line.textContent =
+                        `${item.name} (${item.colour}, size ${item.size}) x${item.quantity}`;
+                    summary.appendChild(line);
+                });
+
+                const total = document.createElement("p");
+                const bold = document.createElement("b");
+                bold.textContent = `Total: ${money(Number(info.total))}`;
+                total.appendChild(bold);
+                summary.appendChild(total);
+
+                result.appendChild(summary);
+            }
+
+            async function lookup() {
+                button.disabled = true;
+                button.textContent = "Checking...";
+                showMessage("Looking up your order...", false);
+
+                const { data, error } = await sb.rpc("track_order", {
+                    p_order_number: orderInput.value.trim(),
+                    p_phone: phoneInput.value.trim()
+                });
+
+                button.disabled = false;
+                button.textContent = "Track Order";
+
+                if (error) {
+                    showMessage(error.message, true);
+                    return;
+                }
+
+                render(data);
+            }
+
+            // Fill in details from the link or from the last order on this device
+            const params = new URLSearchParams(location.search);
+            const fromLink = (params.get("order") || "").toUpperCase();
+
+            let saved = null;
+            try {
+                saved = JSON.parse(localStorage.getItem("africanEleganceLastOrder") || "null");
+            } catch {
+                saved = null;
+            }
+
+            if (fromLink) {
+                orderInput.value = fromLink;
+            } else if (saved?.order) {
+                orderInput.value = saved.order;
+            }
+
+            if (saved?.phone && (!fromLink || fromLink === saved.order)) {
+                phoneInput.value = saved.phone;
+            }
+
+            form.addEventListener("submit", event => {
+                event.preventDefault();
+                lookup();
+            });
+
+            if (orderInput.value && phoneInput.value) lookup();
+        })();
+    </script>
+</body>
+</html>
